@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyChat</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0b1020;color:#f5f7ff;height:100vh}
+    button,input{font:inherit}
+    .hidden{display:none!important}
+    .screen{min-height:100vh}
+    .auth{display:grid;place-items:center;padding:24px;background:radial-gradient(circle at top,#27346b 0,#0b1020 48%)}
+    .card{width:min(420px,100%);background:#151b31;border:1px solid #2b3454;border-radius:24px;padding:30px;box-shadow:0 25px 80px #0008}
+    .logo{font-size:34px;font-weight:800;margin-bottom:6px}
+    .sub{color:#9da7c5;margin-bottom:24px}
+    .tabs{display:flex;gap:8px;margin-bottom:18px}
+    .tab{flex:1;padding:11px;border:0;border-radius:12px;background:#202844;color:#b7c0dc;cursor:pointer}
+    .tab.active{background:#5865f2;color:white}
+    label{display:block;font-size:13px;color:#aab4d0;margin:13px 0 7px}
+    input{width:100%;padding:13px 14px;border-radius:12px;border:1px solid #343e61;background:#0e1427;color:white;outline:none}
+    input:focus{border-color:#6975ff}
+    .primary{width:100%;margin-top:18px;padding:13px;border:0;border-radius:12px;background:#5865f2;color:white;font-weight:700;cursor:pointer}
+    .msg{min-height:22px;color:#ff9e9e;margin-top:12px;font-size:13px}
+    .app{height:100vh;display:grid;grid-template-columns:250px 1fr}
+    aside{background:#0f1528;border-right:1px solid #242d49;padding:16px;display:flex;flex-direction:column}
+    .brand{font-size:22px;font-weight:800;padding:8px 8px 20px}
+    .section{font-size:11px;color:#727e9f;font-weight:800;letter-spacing:.08em;margin:12px 8px 7px}
+    .room{width:100%;text-align:left;background:transparent;border:0;color:#aeb8d4;padding:10px 12px;border-radius:10px;cursor:pointer}
+    .room:hover,.room.active{background:#202844;color:white}
+    .userbox{margin-top:auto;border-top:1px solid #242d49;padding:14px 8px 4px}
+    .user{font-weight:700;overflow:hidden;text-overflow:ellipsis}
+    .email{font-size:12px;color:#727e9f;overflow:hidden;text-overflow:ellipsis;margin:3px 0 10px}
+    .signout{width:100%;padding:9px;border:1px solid #303a5b;border-radius:10px;background:#171e35;color:#d4daf0;cursor:pointer}
+    main{display:flex;flex-direction:column;min-width:0}
+    header{height:64px;display:flex;align-items:center;padding:0 22px;border-bottom:1px solid #242d49;background:#11172b}
+    .roomtitle{font-size:18px;font-weight:800}
+    .status{margin-left:auto;font-size:12px;color:#7f8baa}
+    #messages{flex:1;overflow:auto;padding:22px;display:flex;flex-direction:column;gap:10px}
+    .empty{margin:auto;color:#687493;text-align:center}
+    .message{max-width:800px;padding:10px 13px;border-radius:14px;background:#151d35;border:1px solid #252f4c}
+    .meta{font-size:12px;color:#7f8baa;margin-bottom:4px}
+    .meta b{color:#aeb8ff}
+    .body{white-space:pre-wrap;overflow-wrap:anywhere}
+    form.composer{display:flex;gap:10px;padding:15px;border-top:1px solid #242d49;background:#11172b}
+    #messageInput{margin:0}
+    .send{width:52px;border:0;border-radius:12px;background:#5865f2;color:white;font-weight:800;cursor:pointer}
+    @media(max-width:700px){
+      .app{grid-template-columns:1fr}
+      aside{display:none}
+    }
+  </style>
+</head>
+<body>
+  <section id="authScreen" class="screen auth">
+    <div class="card">
+      <div class="logo">💬 MyChat</div>
+      <div class="sub">A simple real-time chat.</div>
+      <div class="tabs">
+        <button id="loginTab" class="tab active">Log in</button>
+        <button id="signupTab" class="tab">Sign up</button>
+      </div>
+      <form id="authForm">
+        <label>Email</label>
+        <input id="email" type="email" autocomplete="email" required>
+        <label>Password</label>
+        <input id="password" type="password" autocomplete="current-password" minlength="6" required>
+        <button id="authButton" class="primary">Log in</button>
+        <div id="authMessage" class="msg"></div>
+      </form>
+    </div>
+  </section>
+
+  <section id="appScreen" class="screen app hidden">
+    <aside>
+      <div class="brand">💬 MyChat</div>
+      <div class="section">PUBLIC LOBBIES</div>
+      <button class="room active">🌎 General</button>
+      <div class="section">COMING SOON</div>
+      <button class="room" disabled>🔒 Private rooms</button>
+      <button class="room" disabled>✉️ Direct messages</button>
+      <div class="userbox">
+        <div id="userName" class="user"></div>
+        <div id="userEmail" class="email"></div>
+        <button id="signOut" class="signout">Sign out</button>
+      </div>
+    </aside>
+
+    <main>
+      <header>
+        <div class="roomtitle">🌎 General</div>
+        <div id="connectionStatus" class="status">Connecting…</div>
+      </header>
+      <div id="messages">
+        <div class="empty">Loading messages…</div>
+      </div>
+      <form id="composer" class="composer">
+        <input id="messageInput" placeholder="Message #general…" maxlength="2000" autocomplete="off">
+        <button class="send" type="submit">➤</button>
+      </form>
+    </main>
+  </section>
+
+<script>
+const SUPABASE_URL = "https://zaupkepxbshhrnxiaxbz.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_1B5smNm1J1E5wuui06uezA_gb_xDT0S";
+
+const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+let isSignup = false;
+let currentUser = null;
+let generalRoom = null;
+let channel = null;
+
+const $ = id => document.getElementById(id);
+
+$("loginTab").onclick = () => setMode(false);
+$("signupTab").onclick = () => setMode(true);
+
+function setMode(signup) {
+  isSignup = signup;
+  $("loginTab").classList.toggle("active", !signup);
+  $("signupTab").classList.toggle("active", signup);
+  $("authButton").textContent = signup ? "Create account" : "Log in";
+  $("authMessage").textContent = "";
+}
+
+$("authForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  $("authMessage").textContent = "Working…";
+  const email = $("email").value.trim();
+  const password = $("password").value;
+
+  let result;
+  if (isSignup) {
+    result = await client.auth.signUp({ email, password });
+    if (!result.error && !result.data.session) {
+      $("authMessage").textContent = "Account created. Check your email if confirmation is required.";
+      return;
+    }
+  } else {
+    result = await client.auth.signInWithPassword({ email, password });
+  }
+
+  if (result.error) {
+    $("authMessage").textContent = result.error.message;
+  } else if (result.data.user) {
+    await startApp(result.data.user);
+  }
+});
+
+$("signOut").onclick = async () => {
+  await client.auth.signOut();
+};
+
+$("composer").addEventListener("submit", async e => {
+  e.preventDefault();
+  const content = $("messageInput").value.trim();
+  if (!content || !currentUser || !generalRoom) return;
+
+  $("messageInput").value = "";
+  const username =
+    currentUser.user_metadata?.username ||
+    currentUser.email?.split("@")[0] ||
+    "User";
+
+  const { error } = await client.from("messages").insert({
+    room_id: generalRoom.id,
+    username,
+    content
+  });
+
+  if (error) {
+    $("connectionStatus").textContent = "Send failed";
+    console.error(error);
+  }
+});
+
+client.auth.onAuthStateChange(async (_event, session) => {
+  if (session?.user) {
+    await startApp(session.user);
+  } else {
+    currentUser = null;
+    if (channel) await client.removeChannel(channel);
+    $("appScreen").classList.add("hidden");
+    $("authScreen").classList.remove("hidden");
+  }
+});
+
+async function startApp(user) {
+  if (currentUser?.id === user.id && !$("appScreen").classList.contains("hidden")) return;
+
+  currentUser = user;
+  $("authScreen").classList.add("hidden");
+  $("appScreen").classList.remove("hidden");
+  $("userEmail").textContent = user.email || "";
+  $("userName").textContent =
+    user.user_metadata?.username ||
+    user.email?.split("@")[0] ||
+    "User";
+
+  const { data: rooms, error: roomError } = await client
+    .from("rooms")
+    .select("*")
+    .eq("name", "General")
+    .eq("is_private", false)
+    .limit(1);
+
+  if (roomError || !rooms?.length) {
+    $("connectionStatus").textContent = "Room unavailable";
+    console.error(roomError);
+    return;
+  }
+
+  generalRoom = rooms[0];
+  await loadMessages();
+
+  if (channel) await client.removeChannel(channel);
+
+  channel = client
+    .channel("general-messages")
+    .on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "messages",
+      filter: `room_id=eq.${generalRoom.id}`
+    }, payload => addMessage(payload.new))
+    .subscribe(status => {
+      $("connectionStatus").textContent =
+        status === "SUBSCRIBED" ? "● Live" : status;
+    });
+}
+
+async function loadMessages() {
+  const { data, error } = await client
+    .from("messages")
+    .select("*")
+    .eq("room_id", generalRoom.id)
+    .order("created_at", { ascending: true })
+    .limit(200);
+
+  const box = $("messages");
+  box.innerHTML = "";
+
+  if (error) {
+    box.innerHTML = `<div class="empty">Could not load messages.</div>`;
+    console.error(error);
+    return;
+  }
+
+  if (!data?.length) {
+    box.innerHTML = `<div class="empty">No messages yet. Say hello! 👋</div>`;
+    return;
+  }
+
+  data.forEach(addMessage);
+  scrollBottom();
+}
+
+function addMessage(message) {
+  const box = $("messages");
+  if (box.querySelector(`[data-id="${message.id}"]`)) return;
+
+  const empty = box.querySelector(".empty");
+  if (empty) empty.remove();
+
+  const el = document.createElement("div");
+  el.className = "message";
+  el.dataset.id = message.id;
+
+  const meta = document.createElement("div");
+  meta.className = "meta";
+
+  const name = document.createElement("b");
+  name.textContent = message.username || "User";
+
+  const time = document.createElement("span");
+  time.textContent = " · " + new Date(message.created_at).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit"
+  });
+
+  meta.append(name, time);
+
+  const body = document.createElement("div");
+  body.className = "body";
+  body.textContent = message.content;
+
+  el.append(meta, body);
+  box.appendChild(el);
+  scrollBottom();
+}
+
+function scrollBottom() {
+  const box = $("messages");
+  requestAnimationFrame(() => box.scrollTop = box.scrollHeight);
+}
+
+(async () => {
+  const { data } = await client.auth.getSession();
+  if (data.session?.user) await startApp(data.session.user);
+})();
+</script>
+</body>
+</html>
